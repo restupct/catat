@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <title>Catat — Pengeluaran harian</title>
+  <script>
+    // Terapkan tema sebelum halaman dilukis; kegagalan localStorage tidak fatal.
+    (() => {
+      let theme;
+      try { theme = localStorage.getItem('catat-theme'); } catch (_) { }
+      document.documentElement.classList.toggle('dark',
+        theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches));
+    })();
+  </script>
+  <!-- Play CDN praktis untuk prototipe; bukan pendekatan produksi rekomendasi Tailwind. -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>if (window.tailwind) tailwind.config = { darkMode: 'class', corePlugins: { preflight: false } };</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <style>
+    /* CSS inti juga menjaga aplikasi tetap terbaca jika aset CDN gagal. */
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #fff;
+      --ink: #202735;
+      --muted: #556174;
+      --line: #c7ced8;
+      --soft: #edf2f8;
+      --accent: #1d4ed8;
+      --danger: #b42318;
+      --control: #7d8b9e;
+    }
+
+    .dark {
+      color-scheme: dark;
+      --bg: #141820;
+      --panel: #1e2530;
+      --ink: #f1f5fb;
+      --muted: #b7c2d2;
+      --line: #59677b;
+      --soft: #293446;
+      --accent: #9cbdff;
+      --danger: #ffb4ab;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: auto;
+      padding: 32px 24px 48px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 750;
+      letter-spacing: -1px;
+    }
+
+    h2 {
+      font-size: 21px;
+      font-weight: 700;
+    }
+
+    h3 {
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 14px;
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 650;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .between {
+      justify-content: space-between;
+    }
+
+    .stack>*+* {
+      margin-top: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 28px 0;
+    }
+
+    .summary strong {
+      display: block;
+      font-size: clamp(24px, 3vw, 34px);
+      margin: 12px 0 4px;
+      overflow-wrap: anywhere;
+      letter-spacing: -.7px;
+    }
+
+    .summary .today {
+      border-top: 4px solid var(--accent);
+    }
+
+    .badge {
+      background: var(--soft);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      min-height: 44px;
+      padding: 9px 14px;
+      border: 1px solid var(--control);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: var(--soft);
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: wait;
+    }
+
+    .primary {
+      background: #1d4ed8;
+      color: white;
+      border-color: #1d4ed8;
+    }
+
+    .primary:hover {
+      background: #1e40af;
+    }
+
+    .danger {
+      color: var(--danger);
+    }
+
+    .icon {
+      width: 44px;
+      padding: 8px;
+      flex-shrink: 0;
+    }
+
+    .action-button {
+      min-width: 44px;
+      padding: 8px 6px;
+      font-size: 14px;
+    }
+
+    input[type="date"] {
+      font-size: 14px;
+      padding: 10px 8px;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 650;
+      margin-bottom: 6px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      border: 1px solid var(--control);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--ink);
+      background: var(--panel);
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    input[aria-invalid="true"],
+    select[aria-invalid="true"] {
+      border-color: var(--danger);
+    }
+
+    .error {
+      font-size: 14px;
+      color: var(--danger);
+      margin-top: 5px;
+    }
+
+    .error:empty {
+      display: none;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.15fr 1.5fr auto;
+      gap: 12px;
+      align-items: end;
+      margin: 22px 0 14px;
+    }
+
+    #filterTotal {
+      font-weight: 700;
+    }
+
+    #filterSummary {
+      margin: 18px 0;
+    }
+
+    .table-wrap {
+      width: 100%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 650;
+      text-align: left;
+      background: var(--soft);
+    }
+
+    th,
+    td {
+      padding: 14px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    td strong {
+      font-size: 16px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .note {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .cards {
+      display: none;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 44px 16px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+    }
+
+    .empty p {
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    #notice {
+      margin-top: 20px;
+      border-left: 4px solid var(--accent);
+      background: var(--soft);
+      border-radius: 6px;
+      padding: 12px 16px;
+      overflow-wrap: anywhere;
+    }
+
+    #notice:empty {
+      display: none;
+    }
+
+    #notice[data-kind="error"] {
+      border-color: var(--danger);
+    }
+
+    #fatal {
+      margin-top: 20px;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    dialog {
+      width: min(560px, calc(100% - 32px));
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 24px;
+      background: var(--panel);
+      color: var(--ink);
+    }
+
+    dialog::backdrop {
+      background: rgba(0, 0, 0, .6);
+    }
+
+    .dialog-head {
+      margin-bottom: 20px;
+    }
+
+    .dialog-actions {
+      margin-top: 24px;
+      justify-content: flex-end;
+    }
+
+    .category-list {
+      list-style: none;
+      padding: 0;
+      margin: 20px 0 0;
+      max-height: 300px;
+      overflow: auto;
+    }
+
+    .category-list li {
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .category-label {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .category-label span {
+      display: block;
+    }
+
+    footer {
+      margin-top: 28px;
+    }
+
+    footer p+p {
+      margin-top: 10px;
+    }
+
+    @media(min-width:768px) and (max-width:1023px) {
+      .filters {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+    }
+
+    @media(max-width:767px) {
+      main {
+        padding: 24px 16px 32px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .summary {
+        gap: 12px;
+        margin: 24px 0;
+      }
+
+      .summary .panel {
+        padding: 16px 12px;
+      }
+
+      .filters {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .filter-wide {
+        grid-column: 1/-1;
+      }
+
+      .table-wrap {
+        display: none;
+      }
+
+      .cards {
+        display: grid;
+        gap: 12px;
+      }
+
+      .transaction-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        min-width: 0;
+      }
+
+      .transaction-card .note {
+        margin-top: 10px;
+      }
+
+      .transaction-card strong {
+        font-size: 20px;
+        overflow-wrap: anywhere;
+      }
+
+      .transaction-card .category-text {
+        overflow-wrap: anywhere;
+        min-width: 0;
+      }
+
+      .desktop-hint {
+        display: none;
+      }
+
+      dialog {
+        padding: 20px;
+      }
+
+      .hero-actions {
+        width: 100%;
+      }
+
+      .hero-actions .primary {
+        flex: 1;
+      }
+    }
+
+    @media(prefers-reduced-motion:no-preference) {
+      button {
+        transition: background-color .15s;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header class="row between">
+      <div>
+        <p class="eyebrow muted"><i class="fa-solid fa-wallet" aria-hidden="true"></i> Catat / Keuangan pribadi</p>
+        <h1 class="mt-2">Pengeluaran harian</h1>
+        <p class="muted mt-2">Catatan kecil, pengeluaran lebih terarah.</p>
+      </div>
+      <div class="row hero-actions">
+        <button id="themeToggle" type="button" aria-label="Aktifkan tema gelap" aria-pressed="false"><i
+            aria-hidden="true"></i> <span>Tema gelap</span></button>
+        <button id="addTransaction" class="primary" type="button" data-db disabled><i class="fa-solid fa-plus"
+            aria-hidden="true"></i> Tambah pengeluaran</button>
+      </div>
+    </header>
+    <noscript>
+      <p>JavaScript diperlukan untuk menjalankan aplikasi ini.</p>
+    </noscript>
+    <p id="fatal" role="alert" hidden></p>
+    <p id="notice" role="status" aria-live="polite" aria-atomic="true"></p>
+    <section class="summary" aria-label="Ringkasan seluruh transaksi">
+      <article class="panel today">
+        <p class="muted">Pengeluaran hari ini</p><strong id="todayTotal">—</strong>
+        <p id="todayLabel" class="small muted">Menunggu penyimpanan…</p>
+      </article>
+      <article class="panel">
+        <p class="muted">Pengeluaran bulan ini</p><strong id="monthTotal">—</strong>
+        <p id="monthLabel" class="small muted">Tidak terpengaruh filter daftar</p>
+      </article>
+    </section>
+    <section class="panel" aria-labelledby="listHeading">
+      <div class="row between">
+        <div>
+          <h2 id="listHeading">Riwayat pengeluaran</h2>
+          <p class="small muted mt-1">Terbaru lebih dulu · tanggal & waktu lokal</p>
+        </div>
+        <div class="row">
+          <button id="manageCategories" type="button" data-db disabled><i class="fa-solid fa-tags"
+              aria-hidden="true"></i> Kategori</button>
+          <button id="openExport" type="button" data-db disabled><i class="fa-solid fa-download" aria-hidden="true"></i>
+            Ekspor</button>
+        </div>
+      </div>
+      <form id="filters" novalidate>
+        <fieldset id="filterFields" class="filters" disabled style="border:0;padding:0;min-width:0">
+          <legend class="sr-only">Filter daftar transaksi</legend>
+          <div><label for="dateFrom">Tanggal mulai</label><input id="dateFrom" type="date" min="0001-01-01"
+              max="9999-12-31" aria-describedby="filterError"></div>
+          <div><label for="dateTo">Tanggal akhir</label><input id="dateTo" type="date" min="0001-01-01" max="9999-12-31"
+              aria-describedby="filterError"></div>
+          <div class="filter-wide"><label for="filterCategory">Kategori</label><select id="filterCategory">
+              <option value="">Semua kategori</option>
+            </select></div>
+          <div class="filter-wide"><label for="search">Cari catatan</label><input id="search" type="search"
+              placeholder="Cari kata dalam catatan" autocomplete="off"></div>
+          <button id="resetFilters" type="button">Reset filter</button>
+        </fieldset>
+        <p id="filterError" class="error" role="alert"></p>
+      </form>
+      <p id="filterSummary" class="small" aria-live="polite">Memuat data…</p>
+      <div id="empty" class="empty" hidden>
+        <h3 id="emptyTitle"></h3>
+        <p id="emptyText"></p>
+      </div>
+      <div id="desktopList" class="table-wrap" hidden>
+        <table>
+          <caption class="sr-only">Daftar pengeluaran yang memenuhi filter</caption>
+          <colgroup>
+            <col style="width:21%">
+            <col style="width:19%">
+            <col style="width:18%">
+            <col style="width:28%">
+            <col style="width:14%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Nominal</th>
+              <th scope="col">Tanggal & waktu</th>
+              <th scope="col">Kategori</th>
+              <th scope="col">Catatan</th>
+              <th scope="col" style="text-align:right">Tindakan</th>
+            </tr>
+          </thead>
+          <tbody id="transactionRows"></tbody>
+        </table>
+      </div>
+      <div id="mobileList" class="cards" hidden></div>
+    </section>
+    <footer class="small muted">
+      <p><strong>Hanya di browser ini.</strong> Data tersimpan di browser dan perangkat ini, tidak otomatis dicadangkan,
+        dan dapat hilang jika data situs dihapus. Ekspor secara berkala untuk menyimpan salinan.</p>
+      <p>Data tidak otomatis tersedia di perangkat, browser, atau alamat situs lain. Penyimpanan browser tidak diklaim
+        terenkripsi atau sepenuhnya aman. File ekspor berisi data pengeluaran pribadi; simpan dengan hati-hati.</p>
+      <p>Tidak ada akun, backend, pelacakan, atau sinkronisasi. Koneksi pihak ketiga hanya untuk aset Tailwind CSS dan
+        Font Awesome. Cache HTTP mengikuti browser; aplikasi belum menjamin penggunaan offline. Tailwind Play CDN
+        digunakan untuk kemudahan prototipe, bukan rekomendasi produksi Tailwind.</p>
+    </footer>
+  </main>
+
+  <dialog id="transactionDialog" aria-labelledby="transactionTitle">
+    <div class="row between dialog-head">
+      <h2 id="transactionTitle">Tambah pengeluaran</h2><button type="button" class="icon" data-close
+        aria-label="Tutup form pengeluaran">×</button>
+    </div>
+    <form id="transactionForm" class="stack" novalidate>
+      <div><label for="amount">Nominal (Rp) · wajib</label><input id="amount" type="text" inputmode="numeric"
+          pattern="[0-9]+" autocomplete="off" required aria-describedby="amountError">
+        <p id="amountError" class="error" role="alert"></p>
+      </div>
+      <div><label for="transactionCategory">Kategori · wajib</label><select id="transactionCategory" required
+          aria-describedby="transactionCategoryError"></select>
+        <p id="transactionCategoryError" class="error" role="alert"></p>
+      </div>
+      <div><label for="occurredAt">Tanggal & waktu · wajib</label><input id="occurredAt" type="datetime-local"
+          min="0001-01-01T00:00" max="9999-12-31T23:59" step="60" required aria-describedby="occurredAtError">
+        <p id="occurredAtError" class="error" role="alert"></p>
+      </div>
+      <div><label for="note">Catatan (opsional)</label><textarea id="note" rows="3"
+          placeholder="Untuk apa pengeluaran ini?"></textarea></div>
+      <p id="transactionError" class="error" role="alert"></p>
+      <div class="row dialog-actions"><button type="button" data-close>Batal</button><button id="saveTransaction"
+          class="primary" type="submit">Simpan pengeluaran</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="categoryDialog" aria-labelledby="categoryTitle">
+    <div class="row between dialog-head">
+      <h2 id="categoryTitle">Kelola kategori</h2><button class="icon" type="button" data-close
+        aria-label="Tutup kelola kategori">×</button>
+    </div>
+    <p class="small muted">Nama boleh berubah, ID tetap sama. Kategori yang digunakan transaksi tidak dapat dihapus.</p>
+    <form id="categoryForm" class="mt-4" novalidate>
+      <label for="categoryName">Nama kategori · wajib</label><input id="categoryName" required
+        aria-describedby="categoryNameError" autocomplete="off">
+      <p id="categoryNameError" class="error" role="alert"></p>
+      <div class="row mt-3"><button id="saveCategory" type="submit" class="primary">Tambah kategori</button><button
+          id="cancelCategoryEdit" type="button" hidden>Batal ubah</button></div>
+    </form>
+    <p id="categoryError" class="error" role="alert"></p>
+    <p id="categoryStatus" class="small muted" role="status" aria-live="polite"></p>
+    <ul id="categoryList" class="category-list" aria-label="Daftar kategori"></ul>
+  </dialog>
+
+  <dialog id="exportDialog" aria-labelledby="exportTitle">
+    <div class="row between dialog-head">
+      <h2 id="exportTitle">Ekspor pengeluaran</h2><button class="icon" type="button" data-close
+        aria-label="Tutup ekspor">×</button>
+    </div>
+    <form id="exportForm" class="stack">
+      <div><label for="exportFormat">Format file</label><select id="exportFormat">
+          <option value="json">JSON — data asli / migrasi</option>
+          <option value="csv">CSV — spreadsheet</option>
+        </select></div>
+      <div><label for="exportScope">Cakupan transaksi</label><select id="exportScope">
+          <option value="all">Seluruh transaksi</option>
+          <option value="filtered">Hasil filter & pencarian saat ini</option>
+        </select></div>
+      <p class="small muted">CSV dioptimalkan untuk spreadsheet. Teks tertentu dapat diberi awalan apostrof demi
+        keamanan formula. JSON mempertahankan teks asli dan lebih cocok untuk migrasi database.</p>
+      <p class="small muted">File berisi data pengeluaran pribadi. Simpan dengan hati-hati; ekspor tidak mengubah atau
+        menghapus data.</p>
+      <p id="exportError" class="error" role="alert"></p>
+      <div class="row dialog-actions"><button type="button" data-close>Batal</button><button type="submit"
+          class="primary">Unduh file</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmText">
+    <h2 id="confirmTitle">Konfirmasi penghapusan</h2>
+    <p id="confirmText" class="mt-3 note"></p>
+    <form method="dialog" class="row dialog-actions"><button value="cancel" autofocus>Batal</button><button
+        value="delete" class="danger">Ya, hapus</button></form>
+  </dialog>
+
+  <script>
+    'use strict';
+    (() => {
+      const $ = id => document.getElementById(id);
+      const rupiah = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+      const dateFmt = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+      const timeFmt = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const pad = n => String(n).padStart(2, '0');
+      const dateKey = d => `${String(d.getFullYear()).padStart(4, '0')}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const localMinute = d => `${dateKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const nameKey = s => s.trim().toLocaleLowerCase('id-ID');
+      const sum = rows => rows.reduce((n, t) => n + BigInt(t.amount), 0n);
+      let db, ready = false, writeLock = false, editingTransaction = null, editingCategory = null;
+      let categories = [], transactions = [], categoryMap = new Map();
+
+      function node(tag, text, className) {
+        const el = document.createElement(tag);
+        if (text !== undefined) el.textContent = text;
+        if (className) el.className = className;
+        return el;
+      }
+      function announce(message, error = false) {
+        $('notice').dataset.kind = error ? 'error' : 'success';
+        $('notice').textContent = `${error ? 'Perhatian: ' : ''}${message}`;
+        if ($('categoryDialog').open) $('categoryStatus').textContent = $('notice').textContent;
+      }
+      function errorText(error) {
+        if (error.name === 'QuotaExceededError') return 'Ruang penyimpanan tidak cukup atau izin penyimpanan ditolak. Data belum berhasil disimpan.';
+        if (error.name === 'ConstraintError') return 'Nama kategori sudah digunakan. Gunakan nama lain (huruf besar/kecil dianggap sama).';
+        if (error.name === 'AbortError') return 'Operasi penyimpanan dibatalkan. Silakan coba lagi.';
+        if (['SecurityError', 'InvalidStateError', 'UnknownError', 'NotAllowedError'].includes(error.name)) return 'Penyimpanan browser tidak tersedia atau ditolak. Periksa izin situs dan mode privat, lalu muat ulang.';
+        return error.message || 'Operasi database gagal. Silakan coba lagi.';
+      }
+      function setReady(value) {
+        ready = value;
+        document.querySelectorAll('[data-db]').forEach(b => b.disabled = !value);
+        $('filterFields').disabled = !value;
+      }
+
+      // Versi 1: seed dibuat hanya pada pembuatan DB pertama, dalam transaksi upgrade atomik.
+      function openDatabase() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open('catat-pengeluaran', 1);
+          req.onupgradeneeded = event => {
+            const database = req.result;
+            if (event.oldVersion === 0) {
+              const cats = database.createObjectStore('categories', { keyPath: 'id' });
+              cats.createIndex('name_key', 'name_key', { unique: true });
+              const txs = database.createObjectStore('transactions', { keyPath: 'id' });
+              txs.createIndex('occurred_at', 'occurred_at');
+              txs.createIndex('category_id', 'category_id');
+              ['Makan & Minum', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Lainnya'].forEach(name => {
+                cats.add({ id: crypto.randomUUID(), name, name_key: nameKey(name) });
+              });
+            }
+          };
+          req.onblocked = () => {
+            $('fatal').hidden = false;
+            $('fatal').textContent = 'Pembukaan database tertahan tab lain. Tutup tab aplikasi lain agar inisialisasi dapat dilanjutkan.';
+          };
+          req.onerror = () => reject(req.error);
+          req.onsuccess = () => resolve(req.result);
+        });
+      }
+
+      // Callback sinkron boleh mengantre request lanjutan di onsuccess. Jangan await di dalamnya.
+      // Kesuksesan baru diberikan setelah SEMUA request committed (transaction.oncomplete).
+      function run(mode, work) {
+        return new Promise((resolve, reject) => {
+          let tx, result, failure;
+          try { tx = db.transaction(['categories', 'transactions'], mode); }
+          catch (e) { reject(e); return; }
+          const stores = { categories: tx.objectStore('categories'), transactions: tx.objectStore('transactions') };
+          const fail = message => { failure = new Error(message); tx.abort(); };
+          tx.oncomplete = () => resolve(result);
+          tx.onerror = event => { if (!failure) failure = event.target.error; };
+          tx.onabort = () => reject(failure || tx.error || new DOMException('Operasi dibatalkan.', 'AbortError'));
+          try { work(stores, value => { result = value; }, fail); }
+          catch (e) { failure = e; tx.abort(); }
+        });
+      }
+      function snapshot() {
+        return run('readonly', (s, done) => {
+          const data = { categories: [], transactions: [] };
+          s.categories.getAll().onsuccess = e => { data.categories = e.target.result; };
+          s.transactions.getAll().onsuccess = e => { data.transactions = e.target.result; };
+          done(data);
+        });
+      }
+      async function refresh() {
+        const data = await snapshot();
+        categories = data.categories.sort((a, b) => a.name.localeCompare(b.name, 'id'));
+        transactions = data.transactions.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at) || a.id.localeCompare(b.id));
+        categoryMap = new Map(categories.map(c => [c.id, c.name]));
+        fillCategories(); renderSummary(); renderTransactions(); renderCategories();
+      }
+      function fillSelect(select, first) {
+        const previous = select.value;
+        select.replaceChildren(new Option(first, ''));
+        categories.forEach(c => select.add(new Option(c.name, c.id)));
+        select.value = categories.some(c => c.id === previous) ? previous : '';
+      }
+      function fillCategories() {
+        fillSelect($('filterCategory'), 'Semua kategori');
+        fillSelect($('transactionCategory'), 'Pilih kategori');
+      }
+      function renderSummary() {
+        if (!ready) return;
+        const now = new Date(), today = dateKey(now), month = today.slice(0, 7);
+        $('todayTotal').textContent = rupiah.format(sum(transactions.filter(t => dateKey(new Date(t.occurred_at)) === today)));
+        $('monthTotal').textContent = rupiah.format(sum(transactions.filter(t => dateKey(new Date(t.occurred_at)).slice(0, 7) === month)));
+        $('todayLabel').textContent = dateFmt.format(now);
+        $('monthLabel').textContent = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(now) + ' · seluruh transaksi';
+      }
+      function getFilters() {
+        return {
+          date_from: $('dateFrom').value || null, date_to: $('dateTo').value || null,
+          category_id: $('filterCategory').value || null, search: $('search').value
+        };
+      }
+      function filtersValid() {
+        const f = getFilters();
+        const invalid = !!(f.date_from && f.date_to && f.date_from > f.date_to);
+        $('filterError').textContent = invalid ? 'Tanggal mulai tidak boleh melewati tanggal akhir.' : '';
+        ['dateFrom', 'dateTo'].forEach(id => $(id).setAttribute('aria-invalid', String(invalid)));
+        return !invalid;
+      }
+      function filteredRows(rows = transactions, f = getFilters()) {
+        const search = f.search.toLocaleLowerCase('id-ID');
+        return rows.filter(t => {
+          const day = dateKey(new Date(t.occurred_at));
+          return (!f.date_from || day >= f.date_from) && (!f.date_to || day <= f.date_to) &&
+            (!f.category_id || t.category_id === f.category_id) && t.note.toLocaleLowerCase('id-ID').includes(search);
+        });
+      }
+      function actionButton(text, handler, label) {
+        // Tombol teks tetap jelas tanpa bergantung pada ikon CDN.
+        const b = node('button', text, 'action-button'); b.type = 'button';
+        b.setAttribute('aria-label', label); b.title = label;
+        b.addEventListener('click', handler); return b;
+      }
+      function transactionActions(t) {
+        const actions = node('div', undefined, 'actions');
+        actions.append(actionButton('Ubah', () => openTransaction(t), 'Ubah pengeluaran ' + rupiah.format(t.amount)),
+          actionButton('Hapus', () => deleteTransaction(t), 'Hapus pengeluaran ' + rupiah.format(t.amount)));
+        return actions;
+      }
+      function renderTransactions() {
+        const valid = filtersValid(), rows = valid ? filteredRows() : [];
+        $('transactionRows').replaceChildren(); $('mobileList').replaceChildren();
+        $('filterSummary').textContent = valid ? `${rows.length} transaksi hasil filter · Total ${rupiah.format(sum(rows))}` : 'Perbaiki rentang tanggal untuk melihat hasil filter.';
+        $('desktopList').hidden = !rows.length; $('mobileList').hidden = !rows.length; $('empty').hidden = !!rows.length;
+        $('emptyTitle').textContent = !valid ? 'Rentang tanggal tidak valid' : !transactions.length ? 'Belum ada transaksi' : 'Tidak ada hasil filter';
+        $('emptyText').textContent = !valid ? 'Tanggal mulai harus sama atau lebih awal dari tanggal akhir.' : !transactions.length ? 'Mulai dengan tombol “Tambah pengeluaran”. Data hanya disimpan di browser ini.' : 'Coba rentang tanggal lain, ubah pencarian, atau reset filter.';
+        const table = document.createDocumentFragment(), cards = document.createDocumentFragment();
+        rows.forEach(t => {
+          const d = new Date(t.occurred_at), category = categoryMap.get(t.category_id) || 'Kategori tidak tersedia';
+          const tr = node('tr'); const amount = node('td'); amount.append(node('strong', rupiah.format(t.amount)));
+          const when = node('td'); when.append(node('div', dateFmt.format(d)), node('div', timeFmt.format(d), 'muted'));
+          const cat = node('td', category), note = node('td', t.note || '—', 'note'), actions = node('td'); actions.append(transactionActions(t));
+          tr.append(amount, when, cat, note, actions); table.append(tr);
+          const card = node('article', undefined, 'transaction-card');
+          const top = node('div', undefined, 'row between'); top.append(node('strong', rupiah.format(t.amount)), transactionActions(t));
+          card.append(top, node('p', category, 'category-text'), node('p', `${dateFmt.format(d)} · ${timeFmt.format(d)}`, 'small muted'));
+          if (t.note) card.append(node('p', t.note, 'note')); cards.append(card);
+        });
+        $('transactionRows').append(table); $('mobileList').append(cards);
+      }
+
+      // Dialog native memberi inert/fokus modal. Tambahkan siklus Tab dan pemulihan fokus eksplisit.
+      const triggers = new WeakMap();
+      function showDialog(dialog, focus) {
+        triggers.set(dialog, document.activeElement); dialog.returnValue = ''; dialog.showModal(); focus.focus();
+      }
+      document.querySelectorAll('dialog').forEach(dialog => {
+        dialog.addEventListener('cancel', e => { if (dialog.dataset.busy === 'true') e.preventDefault(); });
+        dialog.addEventListener('close', () => {
+          const trigger = triggers.get(dialog);
+          if (trigger && trigger.isConnected && !trigger.disabled) trigger.focus();
+          else if (ready) $('addTransaction').focus();
+        });
+        dialog.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => {
+          if (dialog.dataset.busy !== 'true') dialog.close();
+        }));
+        dialog.addEventListener('keydown', e => {
+          if (e.key !== 'Tab') return;
+          const items = [...dialog.querySelectorAll('button,input,select,textarea,[tabindex]')]
+            .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+          if (!items.length) { e.preventDefault(); return; }
+          const first = items[0], last = items[items.length - 1];
+          if (e.shiftKey && (document.activeElement === first || !items.includes(document.activeElement))) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && (document.activeElement === last || !items.includes(document.activeElement))) { e.preventDefault(); first.focus(); }
+        });
+      });
+      function confirmDelete(message) {
+        $('confirmText').textContent = message;
+        return new Promise(resolve => {
+          $('confirmDialog').addEventListener('close', () => resolve($('confirmDialog').returnValue === 'delete'), { once: true });
+          showDialog($('confirmDialog'), $('confirmDialog').querySelector('[value="cancel"]'));
+        });
+      }
+      function fieldError(id, message) {
+        $(id + 'Error').textContent = message; $(id).setAttribute('aria-invalid', String(!!message));
+      }
+      async function mutate(dialog, work, success, after) {
+        if (writeLock || !ready) return;
+        writeLock = true; dialog.dataset.busy = 'true';
+        const buttons = [...dialog.querySelectorAll('button')]; buttons.forEach(b => b.disabled = true);
+        try {
+          await run('readwrite', work);
+          if (after) after();
+          try { await refresh(); announce(success); }
+          catch (e) { announce('Perubahan sudah tersimpan, tetapi daftar gagal dimuat ulang. ' + errorText(e), true); }
+        } catch (e) {
+          const target = dialog.id === 'transactionDialog' ? 'transactionError' : 'categoryError';
+          $(target).textContent = errorText(e); announce(errorText(e), true);
+        } finally {
+          writeLock = false; dialog.dataset.busy = 'false'; buttons.forEach(b => b.disabled = false);
+        }
+      }
+      function openTransaction(t = null) {
+        if (!categories.length) { announce('Tambahkan kategori terlebih dahulu sebelum mencatat pengeluaran.', true); openCategories(); return; }
+        editingTransaction = t ? t.id : null; $('transactionForm').reset();
+        ['amount', 'transactionCategory', 'occurredAt'].forEach(id => fieldError(id, '')); $('transactionError').textContent = '';
+        $('transactionTitle').textContent = t ? 'Ubah pengeluaran' : 'Tambah pengeluaran';
+        $('amount').value = t ? String(t.amount) : '';
+        $('transactionCategory').value = t ? t.category_id : '';
+        $('occurredAt').value = localMinute(t ? new Date(t.occurred_at) : new Date());
+        $('note').value = t ? t.note : '';
+        showDialog($('transactionDialog'), $('amount'));
+      }
+      $('transactionForm').addEventListener('submit', async e => {
+        e.preventDefault(); if (writeLock) return;
+        $('transactionError').textContent = '';
+        const raw = $('amount').value.trim(), amount = Number(raw), category_id = $('transactionCategory').value;
+        const local = $('occurredAt').value, date = new Date(local);
+        const amountError = !/^\d+$/.test(raw) || !Number.isSafeInteger(amount) || amount <= 0 ? 'Masukkan rupiah bulat positif, maksimal 9.007.199.254.740.991, tanpa titik/koma.' : '';
+        const categoryError = !categoryMap.has(category_id) ? 'Pilih kategori yang tersedia.' : '';
+        const dateError = !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local) || !$('occurredAt').validity.valid || !Number.isFinite(date.getTime()) || localMinute(date) !== local ? 'Masukkan tanggal dan waktu lokal yang valid hingga menit (waktu ini mungkin tidak tersedia saat perubahan zona waktu).' : '';
+        fieldError('amount', amountError); fieldError('transactionCategory', categoryError); fieldError('occurredAt', dateError);
+        if (amountError || categoryError || dateError) {
+          $(amountError ? 'amount' : categoryError ? 'transactionCategory' : 'occurredAt').focus(); return;
+        }
+        const id = editingTransaction || crypto.randomUUID(), note = $('note').value;
+        await mutate($('transactionDialog'), (s, done, fail) => {
+          s.categories.get(category_id).onsuccess = event => {
+            if (!event.target.result) { fail('Kategori sudah tidak tersedia. Buka ulang form dan pilih kategori lain.'); return; }
+            s.transactions.get(id).onsuccess = event => {
+              const old = event.target.result;
+              if (editingTransaction && !old) { fail('Transaksi sudah dihapus di tab lain.'); return; }
+              const now = new Date().toISOString();
+              s.transactions.put({ id, amount, currency: 'IDR', category_id, occurred_at: date.toISOString(), note, created_at: old ? old.created_at : now, updated_at: now });
+            };
+          };
+        }, 'Pengeluaran berhasil disimpan.', () => $('transactionDialog').close());
+      });
+      async function deleteTransaction(t) {
+        if (writeLock || !await confirmDelete(`Hapus pengeluaran ${rupiah.format(t.amount)}? Tindakan ini tidak dapat dibatalkan.`)) return;
+        await mutate($('transactionDialog'), s => s.transactions.delete(t.id), 'Pengeluaran berhasil dihapus.');
+      }
+
+      function resetCategoryForm() {
+        editingCategory = null; $('categoryForm').reset(); fieldError('categoryName', '');
+        $('saveCategory').textContent = 'Tambah kategori'; $('cancelCategoryEdit').hidden = true;
+      }
+      function openCategories() { resetCategoryForm(); $('categoryError').textContent = ''; $('categoryStatus').textContent = ''; renderCategories(); showDialog($('categoryDialog'), $('categoryName')); }
+      function renderCategories() {
+        const list = $('categoryList'); list.replaceChildren();
+        if (!categories.length) { list.append(node('li', 'Belum ada kategori. Tambahkan kategori untuk mulai mencatat.', 'muted')); return; }
+        const counts = new Map(); transactions.forEach(t => counts.set(t.category_id, (counts.get(t.category_id) || 0) + 1));
+        categories.forEach(c => {
+          const item = node('li'), label = node('div', undefined, 'category-label');
+          label.append(node('span', c.name), node('span', `${counts.get(c.id) || 0} transaksi`, 'small muted'));
+          const buttons = node('div', undefined, 'actions');
+          buttons.append(actionButton('Ubah', () => {
+            editingCategory = c.id; $('categoryName').value = c.name; fieldError('categoryName', '');
+            $('categoryError').textContent = ''; $('saveCategory').textContent = 'Simpan nama'; $('cancelCategoryEdit').hidden = false; $('categoryName').focus();
+          }, 'Ubah kategori ' + c.name), actionButton('Hapus', () => deleteCategory(c), 'Hapus kategori ' + c.name));
+          item.append(label, buttons); list.append(item);
+        });
+      }
+      $('cancelCategoryEdit').addEventListener('click', () => { resetCategoryForm(); $('categoryName').focus(); });
+      $('categoryForm').addEventListener('submit', async e => {
+        e.preventDefault(); if (writeLock) return;
+        const name = $('categoryName').value.trim(), key = nameKey(name);
+        const duplicate = categories.some(c => c.id !== editingCategory && nameKey(c.name) === key);
+        fieldError('categoryName', !name ? 'Isi nama kategori; spasi saja tidak cukup.' : duplicate ? 'Nama kategori sudah ada (huruf besar/kecil dianggap sama).' : '');
+        if (!name || duplicate) { $('categoryName').focus(); return; }
+        $('categoryError').textContent = '';
+        const id = editingCategory || crypto.randomUUID();
+        await mutate($('categoryDialog'), (s, done, fail) => {
+          if (editingCategory) s.categories.get(id).onsuccess = e => {
+            if (!e.target.result) { fail('Kategori sudah dihapus di tab lain.'); return; }
+            s.categories.put({ id, name, name_key: key });
+          };
+          else s.categories.add({ id, name, name_key: key });
+        }, 'Kategori berhasil disimpan.', resetCategoryForm);
+      });
+      async function deleteCategory(c) {
+        if (writeLock) return;
+        if (transactions.some(t => t.category_id === c.id)) { $('categoryError').textContent = 'Kategori ini masih digunakan transaksi. Ubah kategori atau hapus transaksi terkait terlebih dahulu.'; return; }
+        if (!await confirmDelete(`Hapus kategori “${c.name}”? Tindakan ini tidak dapat dibatalkan.`)) return;
+        $('categoryError').textContent = '';
+        await mutate($('categoryDialog'), (s, done, fail) => {
+          // Periksa ulang di transaksi readwrite yang sama agar aman terhadap tab lain.
+          s.transactions.index('category_id').count(c.id).onsuccess = e => {
+            if (e.target.result) { fail('Kategori tidak dapat dihapus karena masih digunakan transaksi.'); return; }
+            s.categories.delete(c.id);
+          };
+        }, 'Kategori berhasil dihapus.', () => { if (editingCategory === c.id) resetCategoryForm(); });
+      }
+
+      // CSV aman untuk spreadsheet; JSON tidak memodifikasi teks asli.
+      const csvCell = value => '"' + String(value).replace(/"/g, '""') + '"';
+      const spreadsheetText = value => /^\s*[=+\-@]/u.test(value) ? "'" + value : value;
+      const exportFields = ['id', 'amount', 'currency', 'category_id', 'category_name', 'occurred_at', 'note', 'created_at', 'updated_at'];
+      $('exportForm').addEventListener('submit', async e => {
+        e.preventDefault(); const dialog = $('exportDialog');
+        if (dialog.dataset.busy === 'true' || !ready) return;
+        const scope = $('exportScope').value, format = $('exportFormat').value, filters = getFilters();
+        $('exportError').textContent = '';
+        if (scope === 'filtered' && !filtersValid()) { $('exportError').textContent = 'Perbaiki rentang tanggal filter sebelum mengekspor hasil filter.'; return; }
+        dialog.dataset.busy = 'true'; const buttons = [...dialog.querySelectorAll('button')]; buttons.forEach(b => b.disabled = true);
+        try {
+          // Snapshot baru: kategori dan transaksi konsisten dalam satu transaksi readonly.
+          const data = await snapshot(), names = new Map(data.categories.map(c => [c.id, c.name]));
+          const selected = (scope === 'all' ? data.transactions : filteredRows(data.transactions, filters))
+            .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at) || a.id.localeCompare(b.id));
+          if (!selected.length) { $('exportError').textContent = 'Tidak ada transaksi pada cakupan yang dipilih. Tidak ada file yang dibuat.'; return; }
+          const rows = selected.map(t => ({
+            id: t.id, amount: t.amount, currency: 'IDR', category_id: t.category_id,
+            category_name: names.get(t.category_id) || '', occurred_at: t.occurred_at, note: t.note, created_at: t.created_at, updated_at: t.updated_at
+          }));
+          const now = new Date(); let content, mime;
+          if (format === 'json') {
+            content = JSON.stringify({
+              schema_version: 1, exported_at: now.toISOString(), currency: 'IDR',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, scope, filters: scope === 'all' ? null : filters,
+              categories: data.categories.map(c => ({ id: c.id, name: c.name })), transactions: rows
+            }, null, 2);
+            mime = 'application/json;charset=utf-8';
+          } else {
+            content = '\uFEFF' + exportFields.join(',') + '\r\n' + rows.map(t => exportFields.map(key => {
+              if (key === 'amount') return String(t.amount);
+              return csvCell(key === 'category_name' || key === 'note' ? spreadsheetText(t[key]) : t[key]);
+            }).join(',')).join('\r\n') + '\r\n';
+            mime = 'text/csv;charset=utf-8';
+          }
+          const stamp = dateKey(now).replace(/-/g, '') + '-' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+          const url = URL.createObjectURL(new Blob([content], { type: mime })), link = document.createElement('a');
+          try {
+            link.href = url; link.download = `pengeluaran-${scope === 'all' ? 'semua' : 'filter'}-${stamp}.${format}`;
+            document.body.append(link); link.click();
+          } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
+          announce(`File ${format.toUpperCase()} disiapkan (${rows.length} transaksi). Periksa unduhan browser.`); dialog.close();
+        } catch (err) { $('exportError').textContent = 'Ekspor gagal. ' + errorText(err); }
+        finally { dialog.dataset.busy = 'false'; buttons.forEach(b => b.disabled = false); }
+      });
+
+      // Hanya preferensi tema yang memakai localStorage; data keuangan tidak pernah ke sana.
+      const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+      let explicitTheme = null;
+      try { const t = localStorage.getItem('catat-theme'); if (t === 'dark' || t === 'light') explicitTheme = t; } catch (_) { }
+      function themeLabel() {
+        const dark = document.documentElement.classList.contains('dark'), button = $('themeToggle');
+        button.setAttribute('aria-pressed', String(dark)); button.setAttribute('aria-label', dark ? 'Aktifkan tema terang' : 'Aktifkan tema gelap');
+        button.querySelector('i').className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        button.querySelector('span').textContent = dark ? 'Tema terang' : 'Tema gelap';
+      }
+      $('themeToggle').addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark'); explicitTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        try { localStorage.setItem('catat-theme', explicitTheme); }
+        catch (_) { announce('Tema diubah untuk sesi ini, tetapi preferensi tidak dapat disimpan.', true); }
+        themeLabel();
+      });
+      systemTheme.addEventListener('change', e => { if (!explicitTheme) { document.documentElement.classList.toggle('dark', e.matches); themeLabel(); } });
+      themeLabel();
+      $('addTransaction').addEventListener('click', () => openTransaction());
+      $('manageCategories').addEventListener('click', openCategories);
+      $('openExport').addEventListener('click', () => { $('exportError').textContent = ''; showDialog($('exportDialog'), $('exportFormat')); });
+      $('filters').addEventListener('submit', e => e.preventDefault());
+      $('filters').addEventListener('input', renderTransactions);
+      $('filters').addEventListener('change', renderTransactions);
+      $('resetFilters').addEventListener('click', () => { $('filters').reset(); renderTransactions(); });
+      async function refreshWhenVisible() {
+        if (ready && !writeLock && !document.querySelector('dialog[open]') && !document.hidden) {
+          try { await refresh(); } catch (e) { announce('Gagal memuat data: ' + errorText(e), true); }
+        }
+      }
+      window.addEventListener('focus', refreshWhenVisible);
+      document.addEventListener('visibilitychange', refreshWhenVisible);
+      setInterval(() => { renderSummary(); }, 30000);
+      (async () => {
+        try {
+          if (!window.indexedDB || !window.crypto || !crypto.randomUUID) throw new Error('Browser memerlukan IndexedDB dan crypto.randomUUID(). Buka melalui HTTPS GitHub Pages atau localhost dengan browser modern.');
+          db = await openDatabase();
+          db.onversionchange = () => { db.close(); setReady(false); $('fatal').hidden = false; $('fatal').textContent = 'Versi database berubah di tab lain. Muat ulang halaman sebelum melanjutkan.'; };
+          db.onclose = () => { setReady(false); $('fatal').hidden = false; $('fatal').textContent = 'Koneksi penyimpanan terputus. Muat ulang halaman untuk membuka database kembali.'; };
+          setReady(true); await refresh(); $('fatal').hidden = true;
+        } catch (e) {
+          setReady(false); $('fatal').hidden = false; $('fatal').textContent = 'Aplikasi tidak dapat membuka penyimpanan. ' + errorText(e);
+          $('filterSummary').textContent = 'Data tidak tersedia. Tidak ada penyimpanan alternatif yang digunakan.';
+        }
+      })();
+    })();
+  </script>
+</body>
+
+</html>
