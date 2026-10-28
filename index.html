@@ -611,7 +611,7 @@
     </div>
     <form id="transactionForm" class="stack" novalidate>
       <div><label for="amount">Nominal (Rp) · wajib</label><input id="amount" type="text" inputmode="numeric"
-          pattern="[0-9]+" autocomplete="off" required aria-describedby="amountError">
+          pattern="[0-9.]+" autocomplete="off" required aria-describedby="amountError">
         <p id="amountError" class="error" role="alert"></p>
       </div>
       <div><label for="transactionCategory">Kategori · wajib</label><select id="transactionCategory" required
@@ -691,6 +691,7 @@
       const localMinute = d => `${dateKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       const nameKey = s => s.trim().toLocaleLowerCase('id-ID');
       const sum = rows => rows.reduce((n, t) => n + BigInt(t.amount), 0n);
+      const formatAmount = value => value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
       let db, ready = false, writeLock = false, editingTransaction = null, editingCategory = null;
       let categories = [], transactions = [], categoryMap = new Map();
 
@@ -904,18 +905,29 @@
         editingTransaction = t ? t.id : null; $('transactionForm').reset();
         ['amount', 'transactionCategory', 'occurredAt'].forEach(id => fieldError(id, '')); $('transactionError').textContent = '';
         $('transactionTitle').textContent = t ? 'Ubah pengeluaran' : 'Tambah pengeluaran';
-        $('amount').value = t ? String(t.amount) : '';
+        $('amount').value = t ? formatAmount(String(t.amount)) : '';
         $('transactionCategory').value = t ? t.category_id : '';
         $('occurredAt').value = localMinute(t ? new Date(t.occurred_at) : new Date());
         $('note').value = t ? t.note : '';
         showDialog($('transactionDialog'), $('amount'));
       }
+      $('amount').addEventListener('input', () => {
+        const input = $('amount'), cursor = input.selectionStart ?? input.value.length;
+        const digitsBeforeCursor = input.value.slice(0, cursor).replace(/\D/g, '').length;
+        input.value = formatAmount(input.value);
+        let nextCursor = 0, digits = 0;
+        while (nextCursor < input.value.length && digits < digitsBeforeCursor) {
+          if (/\d/.test(input.value[nextCursor])) digits++;
+          nextCursor++;
+        }
+        input.setSelectionRange(nextCursor, nextCursor);
+      });
       $('transactionForm').addEventListener('submit', async e => {
         e.preventDefault(); if (writeLock) return;
         $('transactionError').textContent = '';
-        const raw = $('amount').value.trim(), amount = Number(raw), category_id = $('transactionCategory').value;
+        const raw = $('amount').value.replace(/\./g, '').trim(), amount = Number(raw), category_id = $('transactionCategory').value;
         const local = $('occurredAt').value, date = new Date(local);
-        const amountError = !/^\d+$/.test(raw) || !Number.isSafeInteger(amount) || amount <= 0 ? 'Masukkan rupiah bulat positif, maksimal 9.007.199.254.740.991, tanpa titik/koma.' : '';
+        const amountError = !/^\d+$/.test(raw) || !Number.isSafeInteger(amount) || amount <= 0 ? 'Masukkan rupiah bulat positif, maksimal 9.007.199.254.740.991.' : '';
         const categoryError = !categoryMap.has(category_id) ? 'Pilih kategori yang tersedia.' : '';
         const dateError = !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local) || !$('occurredAt').validity.valid || !Number.isFinite(date.getTime()) || localMinute(date) !== local ? 'Masukkan tanggal dan waktu lokal yang valid hingga menit (waktu ini mungkin tidak tersedia saat perubahan zona waktu).' : '';
         fieldError('amount', amountError); fieldError('transactionCategory', categoryError); fieldError('occurredAt', dateError);
